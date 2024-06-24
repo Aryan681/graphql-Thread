@@ -1,68 +1,32 @@
 import express from "express";
-import { ApolloServer } from "@apollo/server";
+import createApolloGraphqlServer from "./graphql/index"; // exporting the graphql server
 import { expressMiddleware } from "@apollo/server/express4";
-import { prismaClient } from "./lib/db";
 
-async function Server() {
-  //initialize express //
-  const app = express();
-  const PORT = Number(process.env.PORT) || 80;
+async function startServer() {
+  try {
+    // Initialize Express
+    const app = express();
+    const PORT = Number(process.env.PORT) || 80;
 
-  //Middlewares
+    // Middlewares
+    // If any response comes in the form of JSON, use bodyParser
+    app.use(express.json());
 
-  //if any response come in the form of json the use bodyParser
-  app.use(express.json());
+    // Exposing the GraphQL server
+    const graphqlServer = await createApolloGraphqlServer();
+    app.use("/graphql", express.json(), expressMiddleware(graphqlServer));
 
-  //creating Graphql server
-  const gqlServer = new ApolloServer({
-    //schema (database)
-    typeDefs: ` 
-       type Query {
-          hello: String
-        }
-        type Mutation {
-          createUser(firstName: String! , lastName : String! , email: String! , password: String!): Boolean
-        }`,
-    resolvers: {
-      Mutation: {
-        createUser: async (
-          _: any,
-          args: {
-            firstName: string;
-            lastName: string;
-            email: string;
-            password: string;
-          }
-        ) => {
-          const { firstName, lastName, email, password } = args;
-          await prismaClient.user.create({
-            data: {
-              email,
-              firstName,
-              lastName,
-              password,
-              salt: "1234qwerty",
-            },
-          });
-          return true;
-        },
-      },
-    },
-  });
+    // Route 
+    app.get("/", (req, res) => {
+      res.json({ message: "server is up and running" });
+    });
 
-  //start gql server
-  await gqlServer.start();
-
-  //exposing the gqlServer
-  app.use("/graphql", express.json(), expressMiddleware(gqlServer));
-
-  //route
-  app.get("/", (req, res) => {
-    res.json({ message: "server is up and running" });
-  });
-  //start app
-  app.listen(PORT, () => console.log(`Server started at port ${PORT}`));
+    // Start the app
+    app.listen(PORT, () => console.log(`Server started at port ${PORT}`));
+  } catch (error) {
+    console.error("Error starting server:", error);
+  }
 }
 
-//call the server function
-Server();
+// Call the startServer function
+startServer();
